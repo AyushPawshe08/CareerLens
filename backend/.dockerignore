@@ -1,0 +1,14 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.env.local
+.git/
+.gitignore
+uploads/
+*.db
+*.sqlite3
+CELERY_EXPLAINED.txt
+CLAUDE.md
+.mypy_cache/
+.pytest_cache/

@@ -1,0 +1,87 @@
+# ==========================================================================
+# CareerLensAI — Docker Compose
+#
+# Services:
+#   1. redis        — Message broker + result backend
+#   2. celery_worker — Runs analysis tasks in the background
+#   3. flower        — Celery monitoring dashboard (http://localhost:5555)
+#
+# Usage:
+#   docker-compose up -d          # Start all services
+#   docker-compose logs -f        # Tail all logs
+#   docker-compose down           # Stop all services
+#   docker-compose up --build     # Rebuild after code changes
+#
+# The FastAPI app runs LOCALLY with: uvicorn main:app --reload
+# ==========================================================================
+
+services:
+  # -------------------------------------------------------------------------
+  # Redis — message broker + result backend
+  # -------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: careerlens-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # -------------------------------------------------------------------------
+  # Celery worker — runs the analysis tasks in the background
+  # -------------------------------------------------------------------------
+  celery_worker:
+    container_name: careerlens-celery-worker
+    build: .
+    command: >
+      celery -A utils.celery_worker.celery worker
+      --loglevel=info
+      --pool=threads
+      --concurrency=8
+    volumes:
+      - .:/app
+    working_dir: /app
+    env_file:
+      - .env
+    environment:
+      # Override Redis host to use Docker network hostname
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      # Ensure backend root is on Python path for Celery autodiscovery
+      - PYTHONPATH=/app
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: on-failure
+
+  # -------------------------------------------------------------------------
+  # Flower — Celery task monitoring dashboard (http://localhost:5555)
+  # -------------------------------------------------------------------------
+  flower:
+    container_name: careerlens-flower
+    build: .
+    command: >
+      celery -A utils.celery_worker.celery flower
+      --port=5555
+      --broker_api=redis://redis:6379/0
+    ports:
+      - "5555:5555"
+    env_file:
+      - .env
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - PYTHONPATH=/app
+    depends_on:
+      - redis
+      - celery_worker
+    restart: on-failure
+
+volumes:
+  redis_data:

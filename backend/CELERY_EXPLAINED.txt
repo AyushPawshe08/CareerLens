@@ -1,0 +1,82 @@
+CareerLensAI - Celery Setup, How It Works, and the Module Error Fix
+==================================================================
+
+1) How Celery is added to this project
+-------------------------------------
+Files involved:
+- backend/utils/celery_worker.py
+- backend/modules/analysis/analysis_tasks.py
+- backend/docker-compose.yml
+- backend/Dockerfile
+
+What happens at runtime:
+- The Celery app is created in `backend/utils/celery_worker.py`:
+  - celery = Celery("careerlensai")
+  - broker_url and result_backend are set from env vars (Redis)
+- The worker is started in Docker via docker-compose:
+  - celery -A utils.celery_worker.celery worker --loglevel=info ...
+- Tasks live in:
+  - backend/modules/analysis/analysis_tasks.py
+  - Each function is decorated with @celery.task(...)
+- FastAPI triggers the job in:
+  - backend/modules/analysis/analysis_handler.py
+  - It calls task_run_full_analysis.apply_async(...)
+
+2) How Celery autodiscovery works here
+--------------------------------------
+In celery_worker.py we call:
+
+  celery.autodiscover_tasks(["modules.analysis"], related_name="analysis_tasks")
+
+This means Celery will attempt to import:
+  modules.analysis.analysis_tasks
+
+If that import succeeds, the @celery.task decorators register tasks.
+
+3) Root cause of "ModuleNotFoundError: No module named 'modules'"
+-----------------------------------------------------------------
+The `modules/` package lives at:
+  backend/modules/
+
+Inside Docker, Python only searches folders listed in sys.path.
+The error happens because the backend root folder (`/app`) was not
+guaranteed to be on sys.path inside the Celery container, so Python
+could not resolve `modules`.
+
+Exact failure line:
+  backend/utils/celery_worker.py:59
+
+4) Fix applied (and why it works)
+---------------------------------
+Two fixes were applied:
+
+A) Ensure backend root is on sys.path at runtime:
+   Added to celery_worker.py:
+     _PROJECT_ROOT = Path(__file__).resolve().parents[1]
+     if str(_PROJECT_ROOT) not in sys.path:
+         sys.path.insert(0, str(_PROJECT_ROOT))
+
+   This guarantees `modules/`, `services/`, and `utils/` are importable.
+
+B) Tell Celery the tasks module name is "analysis_tasks":
+   Default autodiscovery expects a file named "tasks.py".
+   Your file is "analysis_tasks.py", so we set:
+     related_name="analysis_tasks"
+
+5) Docker environment adjustment
+--------------------------------
+In backend/docker-compose.yml:
+  PYTHONPATH=/app
+
+This ensures the same import path behavior even before any Python code runs.
+
+6) How to verify (quick checks)
+-------------------------------
+- Celery worker logs should show it loads tasks without ModuleNotFoundError.
+- Flower should list tasks like:
+  analysis.run_full_analysis
+  analysis.get_resume_score
+  analysis.get_missing_and_matched_skills
+  ...
+
+End.
