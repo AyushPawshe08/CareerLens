@@ -62,7 +62,19 @@ celery.conf.task_always_eager = False
 celery.conf.broker_connection_retry_on_startup = True
 
 # ---------------------------------------------------------------------------
-# Auto-discover tasks in the modules that matter
+# Explicit task imports — guarantees every task is registered in the worker.
+#
+# Why not autodiscover_tasks?
+#   autodiscover_tasks() only works reliably when the task file is named
+#   exactly `tasks.py` inside the package.  Our task files use module-specific
+#   names (analysis_tasks.py, question_tasks.py, etc.), so autodiscover_tasks
+#   silently skips them and the worker raises NotRegistered at runtime.
+#
+# Importing the modules here forces Python to execute the @celery.task
+# decorators, which register each task with the Celery app instance.
 # ---------------------------------------------------------------------------
-celery.autodiscover_tasks(["modules.analysis"], related_name="analysis_tasks")
-celery.autodiscover_tasks(["modules.interviewQuestions"], related_name="question_tasks")
+import modules.analysis.analysis_tasks              # noqa: F401  registers analysis tasks
+import modules.interviewQuestions.question_tasks    # noqa: F401  registers interview question tasks
+import modules.resources.resources_tasks            # noqa: F401  registers learning resource tasks
+import modules.atsResume.ats_resume_tasks           # noqa: F401  registers ATS resume tasks
+

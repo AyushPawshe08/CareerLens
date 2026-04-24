@@ -16,9 +16,9 @@ Architecture (fire-and-poll — mirrors analysis_handler.py):
 import logging
 from typing import Optional
 
-from celery.result import AsyncResult
 from sqlalchemy.orm import Session
 
+from utils.celery_worker import celery
 from modules.inputJob.career_model import CareerInput
 from modules.analysis.analysis_model import AnalysisModel
 from .question_model import InterviewQuestion
@@ -88,7 +88,7 @@ def trigger_interview_questions(db: Session, career_input_id: str) -> dict:
         }
 
     # 5. Dispatch Celery orchestrator task (non-blocking)
-    task: AsyncResult = task_generate_interview_questions.apply_async(
+    task = task_generate_interview_questions.apply_async(
         args=[
             career_input_id,
             career_input.job_description,
@@ -123,7 +123,19 @@ def poll_interview_questions(db: Session, task_id: str) -> dict:
             "error": str | None,
         }
     """
-    result: AsyncResult = AsyncResult(task_id)
+    try:
+        # IMPORTANT: use the configured Celery app instance, not the global default app
+        # (otherwise AsyncResult may point at the wrong broker/backend and raise).
+        result = celery.AsyncResult(task_id)
+    except Exception as e:
+        logger.error("Failed to get Celery result for task %s: %s", task_id, e)
+        return {
+            "task_id": task_id,
+            "status": "failed",
+            "result": None,
+            "error": f"Failed to retrieve task status: {str(e)}",
+        }
+    
     state = result.state  # PENDING | STARTED | SUCCESS | FAILURE | RETRY
 
     if state in ("PENDING", "RETRY"):
@@ -146,40 +158,49 @@ def poll_interview_questions(db: Session, task_id: str) -> dict:
         }
 
     # SUCCESS path — idempotent DB write
-    data: dict = result.result
-    career_input_id = data.get("career_input_id")
+    try:
+        data: dict = result.result
+        career_input_id = data.get("career_input_id")
 
-    # Check if already persisted
-    existing: Optional[InterviewQuestion] = (
-        db.query(InterviewQuestion)
-        .filter(InterviewQuestion.career_input_id == career_input_id)
-        .first()
-    )
-    if existing:
-        return {"task_id": task_id, "status": "completed", "result": existing}
+        # Check if already persisted
+        existing: Optional[InterviewQuestion] = (
+            db.query(InterviewQuestion)
+            .filter(InterviewQuestion.career_input_id == career_input_id)
+            .first()
+        )
+        if existing:
+            return {"task_id": task_id, "status": "completed", "result": existing}
 
-    # Fetch the career input to get user_id
-    career_input: Optional[CareerInput] = (
-        db.query(CareerInput)
-        .filter(CareerInput.id == career_input_id)
-        .first()
-    )
+        # Fetch the career input to get user_id
+        career_input: Optional[CareerInput] = (
+            db.query(CareerInput)
+            .filter(CareerInput.id == career_input_id)
+            .first()
+        )
 
-    # Persist for the first time
-    interview_question = InterviewQuestion(
-        career_input_id=career_input_id,
-        user_id=str(career_input.user_id) if career_input else "unknown",
-        technical_questions=data.get("technical_questions", []),
-        behavioural_questions=data.get("behavioural_questions", []),
-        hr_questions=data.get("hr_questions", []),
-    )
+        # Persist for the first time
+        interview_question = InterviewQuestion(
+            career_input_id=career_input_id,
+            user_id=career_input.user_id if career_input else None,
+            technical_questions=data.get("technical_questions", []),
+            behavioural_questions=data.get("behavioural_questions", []),
+            hr_questions=data.get("hr_questions", []),
+        )
 
-    db.add(interview_question)
-    db.commit()
-    db.refresh(interview_question)
+        db.add(interview_question)
+        db.commit()
+        db.refresh(interview_question)
 
-    logger.info(
-        "Interview questions persisted to DB for career_input=%s", career_input_id
-    )
+        logger.info(
+            "Interview questions persisted to DB for career_input=%s", career_input_id
+        )
 
-    return {"task_id": task_id, "status": "completed", "result": interview_question}
+        return {"task_id": task_id, "status": "completed", "result": interview_question}
+    except Exception as e:
+        logger.error("Failed to process interview questions for task %s: %s", task_id, e)
+        return {
+            "task_id": task_id,
+            "status": "failed",
+            "result": None,
+            "error": f"Failed to process results: {str(e)}",
+        }

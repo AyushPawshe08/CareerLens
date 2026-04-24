@@ -17,8 +17,8 @@ This means the FastAPI worker is never blocked waiting for LLM responses.
 import logging
 from typing import Optional
 
-from celery.result import AsyncResult
 from sqlalchemy.orm import Session
+from utils.celery_worker import celery
 
 from modules.inputJob.career_model import CareerInput
 from .analysis_model import AnalysisModel
@@ -93,7 +93,7 @@ def poll_analysis(db: Session, task_id: str) -> dict:
         "result": AnalysisModel | None,
       }
     """
-    result: AsyncResult = AsyncResult(task_id)
+    result = celery.AsyncResult(task_id)
     state = result.state  # PENDING | STARTED | SUCCESS | FAILURE | RETRY
 
     if state in ("PENDING", "RETRY"):

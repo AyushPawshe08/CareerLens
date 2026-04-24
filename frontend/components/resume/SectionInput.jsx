@@ -2,195 +2,210 @@
  * SectionInput.jsx
  *
  * Allows the user to:
- *   - Type a section title and description
- *   - Add the section to the list
- *   - Edit an existing section inline
+ *   - Add a new resume section (title + description)
+ *   - Edit a section inline
  *   - Delete a section
  *   - Reorder sections (move up / move down)
  */
 
 import { useState } from "react";
+import { ArrowUp, ArrowDown, Pencil, Trash2, Plus, Check, X } from "lucide-react";
 
 export default function SectionInput({ sections, onSectionsChange }) {
-  const [title, setTitle] = useState("");
+
+  const [title,       setTitle]       = useState("");
   const [description, setDescription] = useState("");
 
-  // null = no section being edited; otherwise holds the index being edited
-  const [editingIndex, setEditingIndex] = useState(null);
-  const [editTitle, setEditTitle] = useState("");
-  const [editDescription, setEditDescription] = useState("");
+  const [editingIndex,      setEditingIndex]      = useState(null);
+  const [editTitle,         setEditTitle]         = useState("");
+  const [editDescription,   setEditDescription]   = useState("");
 
-  // ── Add new section ────────────────────────────────────────────────────────
+  /* ── Add ── */
   const handleAdd = () => {
-    const trimTitle = title.trim();
-    const trimDesc = description.trim();
-    if (!trimTitle && !trimDesc) return;
-
-    onSectionsChange([...sections, { title: trimTitle, description: trimDesc }]);
+    const t = title.trim();
+    const d = description.trim();
+    if (!t && !d) return;
+    onSectionsChange([...sections, { title: t, description: d }]);
     setTitle("");
     setDescription("");
   };
 
-  // ── Delete section ─────────────────────────────────────────────────────────
-  const handleDelete = (index) => {
-    onSectionsChange(sections.filter((_, i) => i !== index));
-    if (editingIndex === index) setEditingIndex(null);
+  /* ── Delete ── */
+  const handleDelete = (i) => {
+    onSectionsChange(sections.filter((_, idx) => idx !== i));
+    if (editingIndex === i) setEditingIndex(null);
   };
 
-  // ── Start editing ──────────────────────────────────────────────────────────
-  const startEdit = (index) => {
-    setEditingIndex(index);
-    setEditTitle(sections[index].title);
-    setEditDescription(sections[index].description);
+  /* ── Edit ── */
+  const startEdit = (i) => {
+    setEditingIndex(i);
+    setEditTitle(sections[i].title);
+    setEditDescription(sections[i].description);
   };
 
-  // ── Save edit ──────────────────────────────────────────────────────────────
   const saveEdit = () => {
-    const updated = sections.map((s, i) =>
+    onSectionsChange(sections.map((s, i) =>
       i === editingIndex
         ? { title: editTitle.trim(), description: editDescription.trim() }
         : s
-    );
-    onSectionsChange(updated);
+    ));
     setEditingIndex(null);
   };
 
-  // ── Move section up ────────────────────────────────────────────────────────
-  const moveUp = (index) => {
-    if (index === 0) return;
-    const updated = [...sections];
-    [updated[index - 1], updated[index]] = [updated[index], updated[index - 1]];
-    onSectionsChange(updated);
-    if (editingIndex === index) setEditingIndex(index - 1);
+  /* ── Reorder ── */
+  const moveUp = (i) => {
+    if (i === 0) return;
+    const u = [...sections];
+    [u[i - 1], u[i]] = [u[i], u[i - 1]];
+    onSectionsChange(u);
+    if (editingIndex === i) setEditingIndex(i - 1);
   };
 
-  // ── Move section down ──────────────────────────────────────────────────────
-  const moveDown = (index) => {
-    if (index === sections.length - 1) return;
-    const updated = [...sections];
-    [updated[index], updated[index + 1]] = [updated[index + 1], updated[index]];
-    onSectionsChange(updated);
-    if (editingIndex === index) setEditingIndex(index + 1);
+  const moveDown = (i) => {
+    if (i === sections.length - 1) return;
+    const u = [...sections];
+    [u[i], u[i + 1]] = [u[i + 1], u[i]];
+    onSectionsChange(u);
+    if (editingIndex === i) setEditingIndex(i + 1);
   };
 
   return (
-    <div className="border border-black p-4 bg-white mt-4">
-      <h2 className="text-base font-bold mb-3 text-black">Resume Sections</h2>
+    <div className="card-sm">
+      <p className="section-title">Resume Sections</p>
 
-      {/* ── Add new section form ── */}
-      <div className="space-y-2 mb-4">
+      {/* ── Add form ── */}
+      <div style={{ marginBottom: "16px", display: "flex", flexDirection: "column", gap: "10px" }}>
         <div>
-          <label className="block text-sm font-medium text-black mb-1">
-            Section Title
-          </label>
+          <label htmlFor="section-title" className="label">Section Title</label>
           <input
+            id="section-title"
             type="text"
             placeholder="e.g. Education, Experience, Skills"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full border border-black p-2 text-sm text-black bg-white focus:outline-none"
+            className="input"
           />
         </div>
-
         <div>
-          <label className="block text-sm font-medium text-black mb-1">
-            Description
-          </label>
+          <label htmlFor="section-desc" className="label">Description</label>
           <textarea
+            id="section-desc"
             placeholder="e.g. Mumbai University — BSc IT — 2026"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
-            className="w-full border border-black p-2 text-sm text-black bg-white focus:outline-none resize-none"
+            className="input"
           />
         </div>
-
         <button
+          id="add-section-btn"
           onClick={handleAdd}
-          className="border border-black px-4 py-1 text-sm text-black bg-white hover:bg-black hover:text-white"
+          className="btn btn-secondary btn-sm"
+          style={{ alignSelf: "flex-start" }}
         >
-          + Add Section
+          <Plus size={14} /> Add section
         </button>
       </div>
 
-      {/* ── Existing sections list ── */}
+      <hr className="divider" style={{ margin: "0 0 14px" }} />
+
+      {/* ── Empty state ── */}
       {sections.length === 0 && (
-        <p className="text-sm text-gray-500">No sections added yet.</p>
+        <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", textAlign: "center", padding: "12px 0" }}>
+          No sections yet — add your first one above.
+        </p>
       )}
 
-      {sections.map((section, index) => (
-        <div key={index} className="border border-black p-3 mb-2 bg-white">
-          {editingIndex === index ? (
-            /* ── Edit mode ── */
-            <div className="space-y-2">
-              <input
-                type="text"
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-                className="w-full border border-black p-2 text-sm text-black bg-white focus:outline-none"
-              />
-              <textarea
-                value={editDescription}
-                onChange={(e) => setEditDescription(e.target.value)}
-                rows={3}
-                className="w-full border border-black p-2 text-sm text-black bg-white focus:outline-none resize-none"
-              />
-              <div className="flex gap-2">
-                <button
-                  onClick={saveEdit}
-                  className="border border-black px-3 py-1 text-xs text-white bg-black"
-                >
-                  Save
-                </button>
-                <button
-                  onClick={() => setEditingIndex(null)}
-                  className="border border-black px-3 py-1 text-xs text-black bg-white"
-                >
-                  Cancel
-                </button>
+      {/* ── Section list ── */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+        {sections.map((section, i) => (
+          <div key={i} style={{
+            border: "1.5px solid var(--border)",
+            borderRadius: "var(--radius-md)",
+            background: "var(--bg-input)",
+            padding: "12px 14px",
+          }}>
+            {editingIndex === i ? (
+              /* Edit mode */
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="input"
+                  style={{ fontSize: "0.875rem" }}
+                />
+                <textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  rows={3}
+                  className="input"
+                  style={{ fontSize: "0.875rem" }}
+                />
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button onClick={saveEdit} className="btn btn-primary btn-sm">
+                    <Check size={13} /> Save
+                  </button>
+                  <button onClick={() => setEditingIndex(null)} className="btn btn-ghost btn-sm">
+                    <X size={13} /> Cancel
+                  </button>
+                </div>
               </div>
-            </div>
-          ) : (
-            /* ── View mode ── */
-            <div>
-              <p className="text-sm font-bold text-black">{section.title || "(No Title)"}</p>
-              <p className="text-sm text-black whitespace-pre-line mt-1">
-                {section.description || "(No Description)"}
-              </p>
+            ) : (
+              /* View mode */
+              <div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
+                {/* Content */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontWeight: 700, fontSize: "0.875rem", color: "var(--text-heading)", margin: "0 0 3px" }}>
+                    {section.title || "(No Title)"}
+                  </p>
+                  <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)", whiteSpace: "pre-line", margin: 0 }}>
+                    {section.description || "(No Description)"}
+                  </p>
+                </div>
 
-              {/* Action buttons */}
-              <div className="flex gap-2 mt-2">
-                <button
-                  onClick={() => startEdit(index)}
-                  className="text-xs border border-black px-2 py-0.5 text-black bg-white hover:bg-black hover:text-white"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => handleDelete(index)}
-                  className="text-xs border border-black px-2 py-0.5 text-black bg-white hover:bg-black hover:text-white"
-                >
-                  Delete
-                </button>
-                <button
-                  onClick={() => moveUp(index)}
-                  disabled={index === 0}
-                  className="text-xs border border-black px-2 py-0.5 text-black bg-white disabled:opacity-30 hover:bg-black hover:text-white"
-                >
-                  ↑
-                </button>
-                <button
-                  onClick={() => moveDown(index)}
-                  disabled={index === sections.length - 1}
-                  className="text-xs border border-black px-2 py-0.5 text-black bg-white disabled:opacity-30 hover:bg-black hover:text-white"
-                >
-                  ↓
-                </button>
+                {/* Actions */}
+                <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
+                  <button
+                    onClick={() => moveUp(i)}
+                    disabled={i === 0}
+                    className="btn btn-ghost btn-sm"
+                    style={{ padding: "5px 7px" }}
+                    title="Move up"
+                  >
+                    <ArrowUp size={13} />
+                  </button>
+                  <button
+                    onClick={() => moveDown(i)}
+                    disabled={i === sections.length - 1}
+                    className="btn btn-ghost btn-sm"
+                    style={{ padding: "5px 7px" }}
+                    title="Move down"
+                  >
+                    <ArrowDown size={13} />
+                  </button>
+                  <button
+                    onClick={() => startEdit(i)}
+                    className="btn btn-ghost btn-sm"
+                    style={{ padding: "5px 7px" }}
+                    title="Edit"
+                  >
+                    <Pencil size={13} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(i)}
+                    className="btn btn-ghost btn-sm"
+                    style={{ padding: "5px 7px", color: "var(--danger)" }}
+                    title="Delete"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-      ))}
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
