@@ -14,7 +14,7 @@ class InterviewQuestionResponse(BaseModel):
     """Full interview question result — returned when status == 'completed'."""
     id: str
     career_input_id: str
-    user_id: str
+    user_id: int
     technical_questions: List[str]
     behavioural_questions: List[str]
     hr_questions: List[str]

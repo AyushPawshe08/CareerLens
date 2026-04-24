@@ -6,7 +6,7 @@ class AnalysisResponse(BaseModel):
     """Full analysis result — returned when status == 'completed'."""
     id: str
     career_input_id: str
-    user_id: str
+    user_id: int
     summary: str
     missing_skills: List[str]
     matched_skills: List[str]

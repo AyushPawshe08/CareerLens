@@ -7,7 +7,7 @@ as JSON arrays — consistent with how AnalysisModel stores its list fields.
 
 import uuid
 
-from sqlalchemy import Column, DateTime, String, ForeignKey, JSON
+from sqlalchemy import Column, DateTime, Integer, String, ForeignKey, JSON
 from sqlalchemy.sql import func
 
 from config.database import Base
@@ -32,7 +32,7 @@ class InterviewQuestion(Base):
     )
 
     user_id = Column(
-        String,
+        Integer,
         ForeignKey("users.id"),
         nullable=False,
         index=True,

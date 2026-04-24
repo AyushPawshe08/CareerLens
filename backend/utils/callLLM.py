@@ -16,7 +16,7 @@ client = Groq(api_key=GROQ_API_KEY)
 
 
 def call_llm(prompt: str,
-             model: str = "llama-3.3-70b-versatile",
+             model: str = "llama-3.1-8b-instant",
              temperature: float = 0.2,
              max_tokens: int = 1500):
     """

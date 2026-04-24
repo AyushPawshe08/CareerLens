@@ -1,8 +1,15 @@
 export default function Summary({ summary }) {
   return (
-    <section className="border p-4 mb-4 rounded">
-      <h2 className="font-semibold">Summary</h2>
-      <p>{summary || "No summary available."}</p>
+    <section className="card" style={{ marginBottom: "20px" }}>
+      <p className="section-title">AI Summary</p>
+      <p style={{
+        color: "var(--text-body)",
+        lineHeight: 1.75,
+        fontSize: "0.9375rem",
+        margin: 0,
+      }}>
+        {summary || "No summary available for this analysis."}
+      </p>
     </section>
   );
 }

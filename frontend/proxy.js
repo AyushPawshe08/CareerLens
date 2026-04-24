@@ -1,5 +1,5 @@
 /**
- * middleware.js — Next.js Edge Middleware
+ * proxy.js — Next.js 16 Edge Proxy (replaces middleware.js)
  *
  * Runs before every request to enforce route protection.
  *
@@ -62,7 +62,7 @@ export function proxy(request) {
 }
 
 /**
- * Apply middleware to all routes except Next.js internals.
+ * Apply proxy to all routes except Next.js internals.
  * The PUBLIC_PATHS check inside the function itself handles the rest.
  */
 export const config = {

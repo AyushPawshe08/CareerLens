@@ -2,35 +2,56 @@
 
 import { useState, useEffect } from "react";
 import API from "@/utils/api";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 /**
  * Questions component
  *
  * Props:
- *   careerInputId (string) — the career input ID to fetch questions for
+ *   careerInputId (string) — career input ID to fetch questions for
  *
  * Flow:
- *   1. Try GET /interview-questions/{careerInputId} (already generated?)
- *   2. If 404 → POST to trigger generation → poll status → fetch result
- *
- * Backend field names (from question_schema.py):
- *   technical_questions   — List[str]
- *   behavioural_questions — List[str]  (British spelling)
- *   hr_questions          — List[str]
+ *   1. GET /interview-questions/{careerInputId}  → already generated?
+ *   2. 404 → POST to trigger → poll → fetch result
  */
 
-export default function Questions({ careerInputId }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+const CATEGORIES = [
+  {
+    key:   "technical",
+    field: "technical_questions",
+    label: "Technical Questions",
+    icon:  "⚙️",
+    color: "var(--primary)",
+    bg:    "var(--primary-light)",
+  },
+  {
+    key:   "behavioural",
+    field: "behavioural_questions",
+    label: "Behavioural Questions",
+    icon:  "🤝",
+    color: "var(--success)",
+    bg:    "var(--success-bg)",
+  },
+  {
+    key:   "hr",
+    field: "hr_questions",
+    label: "HR Questions",
+    icon:  "💼",
+    color: "var(--warning)",
+    bg:    "var(--warning-bg)",
+  },
+];
 
-  // Which section is expanded: "technical" | "behavioural" | "hr" | null
+export default function Questions({ careerInputId }) {
+
+  const [data,          setData]          = useState(null);
+  const [loading,       setLoading]       = useState(true);
+  const [error,         setError]         = useState("");
   const [activeSection, setActiveSection] = useState(null);
 
   useEffect(() => {
     if (!careerInputId) return;
-
-    let isMounted = true;
+    let isMounted   = true;
     let pollInterval = null;
 
     const fetchQuestions = async () => {
@@ -38,7 +59,7 @@ export default function Questions({ careerInputId }) {
         setLoading(true);
         setError("");
 
-        // Step 1: Check if questions already exist
+        // Step 1 — already generated?
         try {
           const existing = await API.get(`/interview-questions/${careerInputId}`);
           if (isMounted && existing.data) {
@@ -47,51 +68,35 @@ export default function Questions({ careerInputId }) {
             return;
           }
         } catch (err) {
-          // 404 is expected if not yet generated — continue to trigger
           if (err.response?.status !== 404) throw err;
         }
 
-        // Step 2: Trigger generation via POST
+        // Step 2 — trigger generation
         const triggerRes = await API.post(`/interview-questions/${careerInputId}`);
 
-        // If backend returned immediately (already cached)
         if (triggerRes.data.status === "completed") {
           const result = await API.get(`/interview-questions/${careerInputId}`);
-          if (isMounted) {
-            setData(result.data);
-            setLoading(false);
-          }
+          if (isMounted) { setData(result.data); setLoading(false); }
           return;
         }
 
-        // Step 3: Poll status until completed or failed
+        // Step 3 — poll
         const taskId = triggerRes.data.task_id;
-        if (!taskId) throw new Error("No task ID returned from server.");
+        if (!taskId) throw new Error("No task ID returned.");
 
         pollInterval = setInterval(async () => {
-          if (!isMounted) {
-            clearInterval(pollInterval);
-            return;
-          }
+          if (!isMounted) { clearInterval(pollInterval); return; }
           try {
             const statusRes = await API.get(`/interview-questions/status/${taskId}`);
             const { status, error: taskError } = statusRes.data;
-
             if (status === "completed") {
               clearInterval(pollInterval);
               const finalRes = await API.get(`/interview-questions/${careerInputId}`);
-              if (isMounted) {
-                setData(finalRes.data);
-                setLoading(false);
-              }
+              if (isMounted) { setData(finalRes.data); setLoading(false); }
             } else if (status === "failed") {
               clearInterval(pollInterval);
-              if (isMounted) {
-                setError(taskError || "Interview question generation failed.");
-                setLoading(false);
-              }
+              if (isMounted) { setError(taskError || "Generation failed."); setLoading(false); }
             }
-            // "queued" or "processing" → keep polling
           } catch (pollErr) {
             clearInterval(pollInterval);
             if (isMounted) {
@@ -99,7 +104,7 @@ export default function Questions({ careerInputId }) {
               setLoading(false);
             }
           }
-        }, 2000); // poll every 2 seconds
+        }, 2000);
 
       } catch (err) {
         if (isMounted) {
@@ -110,83 +115,128 @@ export default function Questions({ careerInputId }) {
     };
 
     fetchQuestions();
-
-    return () => {
-      isMounted = false;
-      if (pollInterval) clearInterval(pollInterval);
-    };
+    return () => { isMounted = false; if (pollInterval) clearInterval(pollInterval); };
   }, [careerInputId]);
 
-  // Toggle a section open/closed
-  const toggleSection = (section) => {
-    setActiveSection((prev) => (prev === section ? null : section));
-  };
+  const toggle = (key) => setActiveSection((prev) => (prev === key ? null : key));
 
-  // Render a collapsible section
-  const renderSection = (title, key, questions) => {
-    if (!questions || questions.length === 0) return null;
-    const isOpen = activeSection === key;
-
-    return (
-      <div key={key} style={{ border: "1px solid black", marginTop: "8px" }}>
-        {/* Section header — acts as toggle */}
-        <div
-          onClick={() => toggleSection(key)}
-          style={{ padding: "8px", cursor: "pointer", fontWeight: "bold" }}
-        >
-          {isOpen ? "▼" : "▶"} {title} ({questions.length})
-        </div>
-
-        {/* Questions list — only shown when active */}
-        {isOpen && (
-          <div style={{ padding: "8px 16px" }}>
-            {questions.map((q, i) => (
-              <p key={i} style={{ marginTop: "6px" }}>
-                {i + 1}. {q}
-              </p>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // ── Render states ──────────────────────────────────────────────────────────
-
+  /* ── Loading ── */
   if (loading) {
     return (
-      <div style={{ background: "white", color: "black", padding: "16px" }}>
-        Loading interview questions...
+      <div style={{
+        display: "flex", flexDirection: "column", alignItems: "center",
+        justifyContent: "center", padding: "60px 24px", gap: "16px",
+      }}>
+        <div className="spinner" />
+        <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>
+          Generating your interview questions…
+        </p>
       </div>
     );
   }
 
+  /* ── Error ── */
   if (error) {
     return (
-      <div style={{ background: "white", color: "black", padding: "16px" }}>
-        Failed to load interview questions.
+      <div className="alert alert-error" style={{ margin: "24px 0" }}>
+        {error}
       </div>
     );
   }
 
-  if (
-    !data ||
-    (!data.technical_questions?.length &&
-      !data.behavioural_questions?.length &&
-      !data.hr_questions?.length)
-  ) {
+  /* ── Empty ── */
+  const hasData = data && (
+    data.technical_questions?.length ||
+    data.behavioural_questions?.length ||
+    data.hr_questions?.length
+  );
+
+  if (!hasData) {
     return (
-      <div style={{ background: "white", color: "black", padding: "16px" }}>
-        No interview questions found.
+      <div style={{
+        textAlign: "center", padding: "60px 24px",
+        color: "var(--text-muted)", fontSize: "0.9rem",
+      }}>
+        No interview questions found for this analysis.
       </div>
     );
   }
 
+  /* ── Questions ── */
   return (
-    <div style={{ background: "white", color: "black", padding: "16px" }}>
-      {renderSection("Technical Questions", "technical", data.technical_questions)}
-      {renderSection("Behavioral Questions", "behavioural", data.behavioural_questions)}
-      {renderSection("HR Questions", "hr", data.hr_questions)}
+    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+      {CATEGORIES.map(({ key, field, label, icon, color, bg }) => {
+        const questions = data[field] || [];
+        if (!questions.length) return null;
+        const isOpen = activeSection === key;
+
+        return (
+          <div
+            key={key}
+            className={`q-section${isOpen ? " open" : ""}`}
+          >
+            {/* Header */}
+            <div
+              className="q-section-header"
+              onClick={() => toggle(key)}
+              id={`q-section-${key}`}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <span style={{
+                  width: "34px", height: "34px", borderRadius: "var(--radius-sm)",
+                  background: bg, display: "flex", alignItems: "center",
+                  justifyContent: "center", fontSize: "1rem", flexShrink: 0,
+                }}>
+                  {icon}
+                </span>
+                <div>
+                  <p style={{ fontWeight: 700, color: "var(--text-heading)", margin: 0, fontSize: "0.9375rem" }}>
+                    {label}
+                  </p>
+                  <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                    {questions.length} question{questions.length !== 1 ? "s" : ""}
+                  </p>
+                </div>
+              </div>
+              <div style={{ color: "var(--text-muted)", display: "flex", alignItems: "center" }}>
+                {isOpen
+                  ? <ChevronDown size={18} />
+                  : <ChevronRight size={18} />
+                }
+              </div>
+            </div>
+
+            {/* Body */}
+            {isOpen && (
+              <div className="q-section-body">
+                <ol style={{ margin: 0, paddingLeft: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {questions.map((q, i) => (
+                    <li key={i} style={{
+                      display: "flex", gap: "12px", alignItems: "flex-start",
+                      padding: "10px 14px",
+                      borderRadius: "var(--radius-sm)",
+                      background: "var(--bg-surface)",
+                      border: "1px solid var(--border)",
+                    }}>
+                      <span style={{
+                        flexShrink: 0, width: "22px", height: "22px",
+                        borderRadius: "50%", background: bg, color,
+                        fontSize: "0.72rem", fontWeight: 700,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        {i + 1}
+                      </span>
+                      <span style={{ fontSize: "0.9rem", color: "var(--text-body)", lineHeight: 1.6 }}>
+                        {q}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

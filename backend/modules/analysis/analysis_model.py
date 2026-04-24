@@ -24,7 +24,7 @@ class AnalysisModel(Base):
     )
 
     user_id = Column(
-        String,
+        Integer,
         ForeignKey("users.id"),
         nullable=False,
         index=True,
