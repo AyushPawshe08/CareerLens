@@ -21,10 +21,16 @@ app = FastAPI(title="CLAI")
 # Ensure auth tables exist
 Base.metadata.create_all(bind=engine)
 
-origins=[
-    "http://localhost:3000",
-    "http://127.0.0.1:3000"
-]
+import os
+
+origins_env = os.getenv("CORS_ORIGINS")
+if origins_env:
+    origins = [origin.strip() for origin in origins_env.split(",") if origin.strip()]
+else:
+    origins = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000"
+    ]
 
 # Add CORS middleware FIRST so it wraps all routes
 app.add_middleware(
@@ -44,11 +50,20 @@ async def global_exception_handler(request: Request, exc: Exception):
     logger = logging.getLogger(__name__)
     logger.exception("Unhandled exception: %s", exc)
     
+    origin_header = "http://localhost:3000"
+    req_origin = request.headers.get("origin")
+    if req_origin and req_origin in origins:
+        origin_header = req_origin
+    elif origins and "*" in origins:
+        origin_header = "*"
+    elif origins:
+        origin_header = origins[0]
+    
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal server error"},
         headers={
-            "Access-Control-Allow-Origin": "http://localhost:3000",
+            "Access-Control-Allow-Origin": origin_header,
             "Access-Control-Allow-Credentials": "true",
         },
     )

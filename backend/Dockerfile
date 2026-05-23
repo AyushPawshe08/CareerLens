@@ -25,5 +25,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the entire backend source
 COPY . .
 
-# Default command is overridden in docker-compose.yml per service
-CMD ["celery", "-A", "utils.celery_worker.celery", "worker", "--loglevel=info"]
+# Convert Windows line endings (CRLF) to Unix line endings (LF) for start.sh and make it executable
+RUN sed -i 's/\r$//' start.sh && chmod +x start.sh
+
+# Default command runs both FastAPI and Celery worker
+CMD ["./start.sh"]

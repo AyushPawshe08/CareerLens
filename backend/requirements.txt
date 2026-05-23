@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+python-dotenv
+sqlalchemy
+psycopg2-binary
+PyJWT
+pwdlib[argon2]
+pypdf
+pydantic-settings
+pydantic[email]
+python-multipart
+groq
+
+# Celery + Redis + Monitoring
+celery[redis]
+redis==7.4.0
+flower
