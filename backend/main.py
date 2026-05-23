@@ -76,6 +76,10 @@ app.include_router(resources_router)
 app.include_router(ats_resume_router)
 
 
+@app.get("/")
+def root():
+    return {"message": "CareerLens API is running", "status": "ok", "docs": "/docs"}
+
 @app.get("/health")
 def health():
-    return {"message": "Welcome to CLAI"}
+    return {"message": "Welcome to CLAI", "status": "ok"}
