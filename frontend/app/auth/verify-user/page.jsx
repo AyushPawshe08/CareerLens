@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
 import API from "@/utils/api";
 
-export default function VerifyOTP() {
+function VerifyOTPContent() {
 
   const router = useRouter();
   const params = useSearchParams();
@@ -79,5 +79,13 @@ export default function VerifyOTP() {
       </div>
 
     </div>
+  );
+}
+
+export default function VerifyOTP() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50 text-black">Loading...</div>}>
+      <VerifyOTPContent />
+    </Suspense>
   );
 }
