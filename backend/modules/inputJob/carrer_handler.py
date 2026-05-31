@@ -18,16 +18,11 @@ from utils.extractPDF import extract_text_from_pdf
 from .career_model import CareerInput
 
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
 
 UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "uploads")
+MAX_DESCRIPTION_WORDS = 500
 
 
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
 
 def _save_pdf_to_disk(user_id: str, filename: str, file_bytes: bytes) -> str:
     """
@@ -51,9 +46,12 @@ def _save_pdf_to_disk(user_id: str, filename: str, file_bytes: bytes) -> str:
     return rel_path.replace("\\", "/")  # normalise to forward-slashes
 
 
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
+def _limit_words(text: str, max_words: int = MAX_DESCRIPTION_WORDS) -> str:
+    """Return text trimmed to the first `max_words` whitespace-delimited words."""
+    return " ".join(text.strip().split()[:max_words])
+
+
+
 
 def create_career_input(
     db: Session,
@@ -105,8 +103,8 @@ def create_career_input(
 
     record = CareerInput(
         user_id=int(user_id),
-        job_description=job_description.strip(),
-        self_description=self_description.strip() if self_description else None,
+        job_description=_limit_words(job_description),
+        self_description=_limit_words(self_description) if self_description else None,
         resume_file_path=resume_file_path,
         resume_text=resume_text,
     )

@@ -1,32 +1,40 @@
-# --------------------------------------------------------------------------
-# Dockerfile for CareerLensAI backend (Celery worker + Flower)
-# --------------------------------------------------------------------------
-# The FastAPI app runs locally (uvicorn).  Only Redis, the Celery worker
-# and Flower run inside Docker via docker-compose.
-# --------------------------------------------------------------------------
+# ============================================================
+# Dockerfile — CareerLens Backend (FastAPI + Celery)
+# ============================================================
+# Runs both FastAPI (uvicorn) + Celery worker in one container
+# via start.sh. Suitable for AWS EC2 free tier (t2.micro).
+# ============================================================
 
 FROM python:3.11-slim
 
-# Prevents Python from writing .pyc files and enables unbuffered output
+# Prevent .pyc files and force stdout/stderr to be unbuffered
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-WORKDIR /app
-
-# Install system deps (needed for some Python packages)
+# Install curl for Docker health checks + gcc for some Python packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+WORKDIR /app
+
+# Copy and install Python dependencies first (layer caching)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the entire backend source
 COPY . .
 
-# Convert Windows line endings (CRLF) to Unix line endings (LF) for start.sh and make it executable
+# Fix Windows line endings (CRLF → LF) and make start.sh executable
 RUN sed -i 's/\r$//' start.sh && chmod +x start.sh
 
-# Default command runs both FastAPI and Celery worker
+# Expose the FastAPI port
+EXPOSE 8000
+
+# Health check — lets Docker/EC2 know the app is up
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Default: start FastAPI + Celery worker together
 CMD ["./start.sh"]

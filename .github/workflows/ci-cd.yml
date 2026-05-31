@@ -1,0 +1,258 @@
+name: CareerLens CI/CD
+
+# ============================================================
+# Triggers
+# ============================================================
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+
+# ============================================================
+# Jobs
+# ============================================================
+jobs:
+
+  # ----------------------------------------------------------
+  # JOB 1 — Backend CI (syntax check + Docker build)
+  # Runs on every push and every PR
+  # ----------------------------------------------------------
+  backend-ci:
+    name: "Backend — CI (lint + Docker build)"
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend dependencies
+        run: pip install -r requirements.txt
+
+      - name: Check Python syntax (all files)
+        run: python -m compileall -q .
+
+      - name: Validate Docker Compose file
+        run: docker compose -f docker-compose.yml config
+
+      - name: Build backend Docker image (CI smoke test)
+        run: docker build -t careerlens-backend:ci .
+
+  # ----------------------------------------------------------
+  # JOB 2 — Frontend CI (lint + Next.js production build)
+  # Runs on every push and every PR
+  # ----------------------------------------------------------
+  frontend-ci:
+    name: "Frontend — CI (lint + Next.js build)"
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Lint frontend
+        run: npm run lint
+
+      - name: Build frontend (production)
+        run: npm run build
+        env:
+          # Use a placeholder during CI — real URL is set in Vercel dashboard
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'http://localhost:8000' }}
+
+  # ----------------------------------------------------------
+  # JOB 3 — Deploy Backend to AWS EC2
+  # Runs ONLY on push to main/master (not on PRs)
+  # Steps:
+  #   1. Build Docker image
+  #   2. Push to Amazon ECR (free 500 MB/month)
+  #   3. SSH into EC2, pull new image, restart containers
+  # ----------------------------------------------------------
+  deploy-backend:
+    name: "Deploy Backend → AWS EC2"
+    runs-on: ubuntu-latest
+    needs: [backend-ci]                     # only deploy if CI passes
+    if: github.event_name == 'push'        # skip on pull_request
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Configure AWS credentials ──────────────────────────
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ secrets.AWS_REGION }}
+
+      # ── Login to Amazon ECR ────────────────────────────────
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # ── Build & push Docker image to ECR ──────────────────
+      - name: Build and push Docker image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/careerlens-backend:$IMAGE_TAG \
+                       -t $ECR_REGISTRY/careerlens-backend:latest \
+                       ./backend
+          docker push $ECR_REGISTRY/careerlens-backend:$IMAGE_TAG
+          docker push $ECR_REGISTRY/careerlens-backend:latest
+
+      # ── SSH into EC2 and deploy ────────────────────────────
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          ECR_REGISTRY:    ${{ steps.ecr-login.outputs.registry }}
+          AWS_REGION:      ${{ secrets.AWS_REGION }}
+          DATABASE_URL:    ${{ secrets.DATABASE_URL }}
+          JWT_SECRET_KEY:  ${{ secrets.JWT_SECRET_KEY }}
+          SMTP_USERNAME:   ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD:   ${{ secrets.SMTP_PASSWORD }}
+          SMTP_FROM:       ${{ secrets.SMTP_FROM }}
+          GROQ_API_KEY:    ${{ secrets.GROQ_API_KEY }}
+          CORS_ORIGINS:    ${{ secrets.CORS_ORIGINS }}
+        with:
+          host:     ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key:      ${{ secrets.EC2_SSH_KEY }}
+          envs:     ECR_REGISTRY,AWS_REGION,DATABASE_URL,JWT_SECRET_KEY,SMTP_USERNAME,SMTP_PASSWORD,SMTP_FROM,GROQ_API_KEY,CORS_ORIGINS
+          script: |
+            # ── Authenticate Docker with ECR ──
+            aws ecr get-login-password --region $AWS_REGION | \
+              docker login --username AWS --password-stdin $ECR_REGISTRY
+
+            # ── Pull the latest backend image ──
+            docker pull $ECR_REGISTRY/careerlens-backend:latest
+
+            # ── Start Redis if not already running ──
+            if ! docker ps --format '{{.Names}}' | grep -q "^careerlens-redis$"; then
+              echo "Starting Redis container..."
+              docker run -d \
+                --name careerlens-redis \
+                --restart always \
+                -p 6379:6379 \
+                redis:7-alpine
+            else
+              echo "Redis is already running."
+            fi
+
+            # ── Stop & remove old backend container (if exists) ──
+            docker stop careerlens-backend 2>/dev/null || true
+            docker rm   careerlens-backend 2>/dev/null || true
+
+            # ── Run the new backend container ──
+            docker run -d \
+              --name careerlens-backend \
+              --restart always \
+              -p 8000:8000 \
+              --link careerlens-redis:redis \
+              -e DATABASE_URL="$DATABASE_URL" \
+              -e JWT_SECRET_KEY="$JWT_SECRET_KEY" \
+              -e JWT_ALGORITHM=HS256 \
+              -e ACCESS_TOKEN_EXPIRE_MINUTES=30 \
+              -e OTP_EXPIRE_MINUTES=10 \
+              -e SMTP_SERVER=smtp.gmail.com \
+              -e SMTP_PORT=587 \
+              -e SMTP_USERNAME="$SMTP_USERNAME" \
+              -e SMTP_PASSWORD="$SMTP_PASSWORD" \
+              -e SMTP_FROM="$SMTP_FROM" \
+              -e GROQ_API_KEY="$GROQ_API_KEY" \
+              -e CELERY_BROKER_URL=redis://redis:6379/0 \
+              -e CELERY_RESULT_BACKEND=redis://redis:6379/0 \
+              -e CORS_ORIGINS="$CORS_ORIGINS" \
+              $ECR_REGISTRY/careerlens-backend:latest
+
+            # ── Health check — wait up to 30s for app to start ──
+            echo "Waiting for backend to be healthy..."
+            for i in $(seq 1 10); do
+              sleep 3
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health || echo "000")
+              if [ "$STATUS" = "200" ]; then
+                echo "✅ Backend is healthy (HTTP $STATUS)"
+                break
+              fi
+              echo "  Attempt $i/10 — HTTP $STATUS, retrying..."
+            done
+
+            # ── Clean up old/dangling images to save disk ──
+            docker image prune -f
+
+  # ----------------------------------------------------------
+  # JOB 4 — Deploy Frontend to Vercel
+  # Runs ONLY on push to main/master (not on PRs)
+  # ----------------------------------------------------------
+  deploy-frontend:
+    name: "Deploy Frontend → Vercel"
+    runs-on: ubuntu-latest
+    needs: [frontend-ci]                    # only deploy if CI passes
+    if: github.event_name == 'push'        # skip on pull_request
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Pull Vercel environment & project info
+        run: |
+          vercel pull --yes \
+            --environment=production \
+            --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build frontend for Vercel (production)
+        run: |
+          vercel build --prod \
+            --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy prebuilt frontend to Vercel
+        run: |
+          vercel deploy --prebuilt --prod \
+            --token=${{ secrets.VERCEL_TOKEN }}

@@ -1,27 +1,3 @@
-"""
-FastAPI router for the inputJob module.
-
-POST /career-inputs/
-  Accepts multipart/form-data with:
-    - job_description  (form field, required)
-    - self_description (form field, optional)
-    - resume           (file upload, optional PDF)
-
-  Auth: Bearer JWT required.
-  The user_id is derived from the authenticated user — NOT from the form.
-
-  After creating the CareerInput record, the Celery analysis task is
-  triggered automatically so the frontend can immediately redirect to
-  the analysis page.
-
-GET /career-inputs/
-  Returns all career inputs for the authenticated user.
-
-GET /career-inputs/{career_input_id}
-  Returns a single career input.
-  Enforces ownership: 403 if the record belongs to another user.
-"""
-
 import logging
 from typing import Optional
 
@@ -41,9 +17,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/career-inputs", tags=["career-inputs"])
 
 
-# ---------------------------------------------------------------------------
-# POST  /career-inputs/
-# ---------------------------------------------------------------------------
 
 @router.post("/", response_model=CareerInputResponse, status_code=201)
 async def create_career_input_route(
