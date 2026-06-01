@@ -38,10 +38,11 @@ export function proxy(request) {
     return NextResponse.next();
   }
 
-  // ── Allow Next.js internals and static assets ────────────────────────────
+  // ── Allow Next.js internals, static assets, and API proxy ───────────────
   if (
     pathname.startsWith("/_next/") ||
     pathname.startsWith("/api/") ||
+    pathname.startsWith("/backend/") ||   // ← backend proxy routes — never redirect these
     pathname === "/favicon.ico"
   ) {
     return NextResponse.next();
