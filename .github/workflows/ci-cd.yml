@@ -47,6 +47,12 @@ jobs:
       - name: Check Python syntax (all files)
         run: python -m compileall -q .
 
+      - name: Create stub .env for Docker Compose validation
+        run: |
+          # The real .env is gitignored — copy .env.example as a stub
+          # so 'docker compose config' can parse the file references.
+          cp .env.example .env
+
       - name: Validate Docker Compose file
         run: docker compose -f docker-compose.yml config
 
