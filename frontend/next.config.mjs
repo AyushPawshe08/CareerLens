@@ -6,15 +6,15 @@ const nextConfig = {
   turbopack: {},
 
   // ── API Proxy rewrites ──────────────────────────────────────────────────
-  // Vercel (HTTPS) proxies /api/* to the EC2 backend (HTTP) server-side.
+  // Vercel (HTTPS) proxies /backend/* to the EC2 backend (HTTP) server-side.
+  // Using /backend prefix avoids conflict with Next.js reserved /api routes.
   // This avoids the browser mixed-content block (HTTPS page → HTTP API).
-  // In local dev, NEXT_PUBLIC_API_URL is empty so it falls back to localhost.
   async rewrites() {
     const backendUrl =
       process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     return [
       {
-        source: "/api/:path*",
+        source: "/backend/:path*",
         destination: `${backendUrl}/:path*`,
       },
     ];
