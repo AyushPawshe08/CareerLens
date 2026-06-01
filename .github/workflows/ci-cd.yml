@@ -14,6 +14,12 @@ on:
       - master
 
 # ============================================================
+# Opt into Node.js 24 for all actions (Node 20 deprecated June 2026)
+# ============================================================
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+# ============================================================
 # Jobs
 # ============================================================
 jobs:
@@ -124,6 +130,17 @@ jobs:
       - name: Login to Amazon ECR
         id: ecr-login
         uses: aws-actions/amazon-ecr-login@v2
+
+      # ── Create ECR repository if it doesn't exist yet ─────
+      - name: Create ECR repository (if not exists)
+        run: |
+          aws ecr describe-repositories \
+            --repository-names careerlens-backend \
+            --region ${{ secrets.AWS_REGION }} \
+          || aws ecr create-repository \
+            --repository-name careerlens-backend \
+            --region ${{ secrets.AWS_REGION }}
+          echo "✅ ECR repository ready"
 
       # ── Build & push Docker image to ECR ──────────────────
       - name: Build and push Docker image to ECR

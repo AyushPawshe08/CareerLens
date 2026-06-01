@@ -1,7 +1,10 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000",
+  // All requests go to /api/* which Next.js proxies to the real backend.
+  // This avoids HTTPS→HTTP mixed content errors when deployed on Vercel.
+  // next.config.mjs rewrites: /api/:path* → NEXT_PUBLIC_API_URL/:path*
+  baseURL: "/api",
   withCredentials: true,
 });
 
