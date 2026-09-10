@@ -187,8 +187,8 @@ A dedicated, real-time resume editor featuring structured personal data fields, 
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/AyushPawshe08/CarrerLens.git
-cd CarrerLens
+git clone https://github.com/AyushPawshe08/CareerLens.git
+cd CareerLens
 ```
 
 ---
