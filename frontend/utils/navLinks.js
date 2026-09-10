@@ -1,6 +1,9 @@
 /**
- * Shared nav link builder for all private analysis pages.
- * Import this wherever buildNavLinks is needed to keep them in sync.
+ * navLinks.js
+ *
+ * Legacy helper — kept for backward compatibility.
+ * The Navbar component is now self-aware and reads the career_input_id
+ * directly from the URL / localStorage. Pages no longer need to pass links.
  *
  * @param {string} inputId — career_input_id
  */

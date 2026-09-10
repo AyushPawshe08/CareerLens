@@ -18,7 +18,12 @@ router = APIRouter(prefix="/career-inputs", tags=["career-inputs"])
 
 
 
+# Register for BOTH /career-inputs/ and /career-inputs (no slash).
+# Next.js proxy strips the trailing slash before forwarding, so both
+# variants must be handled. With redirect_slashes=False on the FastAPI
+# app, there is no automatic 307 redirect between the two paths.
 @router.post("/", response_model=CareerInputResponse, status_code=201)
+@router.post("",  response_model=CareerInputResponse, status_code=201, include_in_schema=False)
 async def create_career_input_route(
     job_description: str = Form(..., min_length=1, description="The job description text"),
     self_description: Optional[str] = Form(None, description="Optional free-text self-description"),
@@ -66,20 +71,36 @@ async def create_career_input_route(
             detail=f"Failed to create career input: {exc}",
         ) from exc
 
-    # ── Trigger Celery analysis pipeline (fire-and-forget) ──────────────────
+    # ── Trigger analysis pipeline ────────────────────────────────────────────
+    # Primary path: dispatch to Celery (non-blocking, requires Redis).
+    # Fallback path: run analysis synchronously in-process when Redis is down.
+    # Using BaseException so OS-level socket errors (ECONNRESET, ECONNREFUSED)
+    # from the Redis connection pool are also caught before they can abort the
+    # HTTP response.
     try:
         from modules.analysis.analysis_handler import trigger_analysis
         trigger_analysis(db=db, career_input_id=record.id)
-        logger.info("Analysis task queued for career_input=%s", record.id)
-    except Exception as exc:
-        # Do NOT fail the request if Celery is unavailable — the user can
-        # trigger analysis manually from the analysis page.
+        logger.info("Analysis task queued via Celery for career_input=%s", record.id)
+    except BaseException as exc:
         logger.warning(
-            "Could not auto-trigger analysis for career_input=%s: %s",
+            "Celery unavailable for career_input=%s (%s). "
+            "Falling back to synchronous analysis.",
             record.id, exc,
         )
+        try:
+            from modules.analysis.analysis_handler import analyze_career_input_sync
+            analyze_career_input_sync(db=db, career_input_id=record.id)
+            logger.info("Synchronous analysis completed for career_input=%s", record.id)
+        except BaseException as sync_exc:
+            # Analysis failed entirely — log but still return the record.
+            # The user can retry from the analysis page.
+            logger.error(
+                "Synchronous analysis also failed for career_input=%s: %s",
+                record.id, sync_exc,
+            )
 
     return record
+
 
 
 # ---------------------------------------------------------------------------
@@ -87,6 +108,7 @@ async def create_career_input_route(
 # ---------------------------------------------------------------------------
 
 @router.get("/", response_model=list[CareerInputResponse])
+@router.get("",  response_model=list[CareerInputResponse], include_in_schema=False)
 def list_career_inputs_route(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_authenticated_user),

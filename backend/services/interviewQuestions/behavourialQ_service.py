@@ -12,8 +12,9 @@ Returns a list of 5-8 behavioural interview questions.
 
 import logging
 
-from utils.callLLM import call_llm
-from services.analysis._llm_utils import extract_json, clamp_list
+from utils.llm import llm_router
+from utils.llm.token_optimizer import optimize_resume_text, optimize_job_description
+from services.analysis._llm_utils import clamp_list
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,9 @@ def generate_behavioural_questions_llm(
     resume_text: str,
 ) -> list[str]:
     """
-    Calls Groq LLM and returns 5–8 behavioural interview questions.
+    Calls the LLM router and returns 5–8 behavioural interview questions.
+
+    Uses Groq as the primary provider with Gemini + OpenRouter fallback.
 
     Args:
         job_description: Full JD text (used to tailor team/leadership context).
@@ -33,8 +36,11 @@ def generate_behavioural_questions_llm(
         List of 5–8 behavioural question strings.
 
     Raises:
-        RuntimeError: If LLM call or JSON parsing fails.
+        RuntimeError: If all LLM providers fail.
     """
+    trimmed_resume = optimize_resume_text("interview_questions", resume_text)
+    trimmed_jd = optimize_job_description("interview_questions", job_description)
+
     prompt = f"""
 You are an experienced HR interviewer assessing a candidate's soft skills and work style.
 
@@ -54,14 +60,18 @@ Rules:
 - Do NOT include any explanations, markdown, or extra text outside the JSON.
 
 Job Description:
-{job_description}
+{trimmed_jd}
 
 Candidate Background:
-{resume_text}
+{trimmed_resume}
 """.strip()
 
-    response = call_llm(prompt, temperature=0.4, max_tokens=1200)
-    data = extract_json(response)
+    data = llm_router.generate_json(
+        task="interview_questions",
+        prompt=prompt,
+        temperature=0.4,
+        max_tokens=1200,
+    )
 
     questions = clamp_list(data.get("behavioural_questions", []), 5, 8)
 

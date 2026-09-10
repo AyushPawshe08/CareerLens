@@ -17,6 +17,7 @@ Import path for Celery autodiscovery:
 import logging
 
 from utils.celery_worker import celery
+from utils.callLLM import handle_celery_task_exception
 
 from services.interviewQuestions.technicalQ_service import generate_technical_questions_llm
 from services.interviewQuestions.behavourialQ_service import generate_behavioural_questions_llm
@@ -51,13 +52,7 @@ def task_generate_technical_questions(
         logger.info("Technical questions task completed: %d questions", len(result))
         return result
     except Exception as exc:
-        logger.warning(
-            "Technical questions task failed (attempt %s/%s): %s",
-            self.request.retries + 1,
-            self.max_retries + 1,
-            exc,
-        )
-        raise self.retry(exc=exc)
+        handle_celery_task_exception(self, exc)
 
 
 # ---------------------------------------------------------------------------
@@ -84,13 +79,7 @@ def task_generate_behavioural_questions(
         logger.info("Behavioural questions task completed: %d questions", len(result))
         return result
     except Exception as exc:
-        logger.warning(
-            "Behavioural questions task failed (attempt %s/%s): %s",
-            self.request.retries + 1,
-            self.max_retries + 1,
-            exc,
-        )
-        raise self.retry(exc=exc)
+        handle_celery_task_exception(self, exc)
 
 
 # ---------------------------------------------------------------------------
@@ -117,13 +106,7 @@ def task_generate_hr_questions(
         logger.info("HR questions task completed: %d questions", len(result))
         return result
     except Exception as exc:
-        logger.warning(
-            "HR questions task failed (attempt %s/%s): %s",
-            self.request.retries + 1,
-            self.max_retries + 1,
-            exc,
-        )
-        raise self.retry(exc=exc)
+        handle_celery_task_exception(self, exc)
 
 
 # ---------------------------------------------------------------------------
@@ -179,10 +162,7 @@ def task_generate_interview_questions(
         # .get() is safe here because worker_pool = "threads" (not prefork)
         results = group_result.get(timeout=180, disable_sync_subtasks=False)
     except Exception as exc:
-        logger.error(
-            "Group subtasks failed for career_input=%s: %s", career_input_id, exc
-        )
-        raise self.retry(exc=exc)
+        handle_celery_task_exception(self, exc)
 
     technical_questions, behavioural_questions, hr_questions = results
 

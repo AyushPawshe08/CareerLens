@@ -319,6 +319,14 @@ textarea.input {
   min-height: 90px;
 }
 
+/* Flex-fill variant — used in panel-style layouts */
+textarea.input[style*="height: 100%"],
+textarea.input[style*="height:100%"] {
+  resize: none;
+  min-height: 0;
+  flex: 1;
+}
+
 /* ── Labels ── */
 .label {
   display: block;
@@ -441,6 +449,17 @@ textarea.input {
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes fadeSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -639,4 +658,183 @@ textarea.input {
   text-align: center;
   max-width: 420px;
   width: 100%;
+}
+
+/* ============================================================
+   JOB-INPUT — Responsive Panel Layout
+   ============================================================ */
+
+/* Desktop: 3 columns side-by-side, fills viewport */
+.job-input-wrapper {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-base);
+  overflow: hidden;
+}
+
+.job-input-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 24px 16px;
+  min-height: 0;
+}
+
+.job-input-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.job-input-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.job-input-panels {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  min-height: 0;
+}
+
+.job-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.job-panel-header {
+  padding: 14px 18px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-subtle);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.job-panel-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.job-panel-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  min-height: 0;
+}
+
+.job-panel-textarea {
+  flex: 1;
+  resize: none !important;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+.job-panel-dropzone {
+  flex: 1;
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 20px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  min-height: 0;
+}
+
+/* ── Tablet: 2 columns, allow scroll ── */
+@media (max-width: 900px) {
+  .job-input-wrapper {
+    height: auto;
+    overflow: auto;
+  }
+
+  .job-input-body {
+    padding: 16px 16px 20px;
+    flex: none;
+  }
+
+  .job-input-panels {
+    grid-template-columns: 1fr 1fr;
+    flex: none;
+    min-height: 0;
+  }
+
+  .job-panel {
+    min-height: 260px;
+  }
+
+  .job-panel-textarea {
+    min-height: 160px !important;
+    height: 160px !important;
+    flex: none;
+  }
+
+  .job-panel-dropzone {
+    min-height: 140px;
+    flex: none;
+  }
+}
+
+/* ── Phone: 1 column, stacked ── */
+@media (max-width: 600px) {
+  .job-input-body {
+    padding: 12px 12px 20px;
+  }
+
+  .job-input-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .job-input-header .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .job-input-panels {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .job-panel {
+    min-height: 220px;
+  }
+
+  .job-panel-textarea {
+    min-height: 130px !important;
+    height: 130px !important;
+    flex: none;
+  }
+
+  .job-panel-dropzone {
+    min-height: 120px;
+    flex: none;
+  }
 }

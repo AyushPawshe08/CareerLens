@@ -8,11 +8,9 @@ Design decision: batch all skills in one request to reduce latency
 and API calls vs. one request per skill.
 """
 
-import json
 import logging
 
-from utils.callLLM import call_llm
-from services.analysis._llm_utils import extract_json
+from utils.llm import llm_router
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +34,10 @@ _FALLBACK_RESOURCE = {
 
 def generate_resources_llm(missing_skills: list[str]) -> list[dict]:
     """
-    Calls the LLM and returns a list of resource dicts — one per skill.
+    Calls the LLM router and returns a list of resource dicts — one per skill.
+
+    Uses Groq as the primary provider with Gemini + OpenRouter fallback.
+    Resources task does NOT send resume_text (skill list only → minimal tokens).
 
     Each dict shape:
         {
@@ -104,8 +105,12 @@ Rules:
 Generate a resource object for EVERY skill listed above. Do not skip any.
 """.strip()
 
-    response = call_llm(prompt, temperature=0.2, max_tokens=3000)
-    data = extract_json(response)
+    data = llm_router.generate_json(
+        task="resources",
+        prompt=prompt,
+        temperature=0.2,
+        max_tokens=3000,
+    )
 
     raw_resources: list = data.get("resources", [])
 

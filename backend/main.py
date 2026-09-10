@@ -16,7 +16,13 @@ from modules.resources import resources_model
 from modules.atsResume.ats_resume_router import router as ats_resume_router
 from modules.atsResume import ats_resume_model
 
-app = FastAPI(title="CLAI")
+app = FastAPI(
+    title="CLAI",
+    # Prevent 307 redirects when trailing slash is missing/extra.
+    # Without this, POST /career-inputs → 307 → /career-inputs/ and the
+    # browser drops the Authorization header on the redirect → 401.
+    redirect_slashes=False,
+)
 
 # Ensure auth tables exist
 Base.metadata.create_all(bind=engine)

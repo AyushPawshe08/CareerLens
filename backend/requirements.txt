@@ -10,6 +10,9 @@ pydantic-settings
 pydantic[email]
 python-multipart
 groq
+google-genai
+httpx
+
 
 # Celery + Redis + Monitoring
 celery[redis]

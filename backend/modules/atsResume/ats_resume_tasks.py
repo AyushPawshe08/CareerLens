@@ -11,6 +11,7 @@ Import path for Celery autodiscovery:
 import logging
 
 from utils.celery_worker import celery
+from utils.callLLM import handle_celery_task_exception
 from services.atsResume.ats_resume_service import generate_ats_resume_llm
 
 logger = logging.getLogger(__name__)
@@ -52,14 +53,7 @@ def task_generate_ats_resume(
             missing_skills=missing_skills,
         )
     except Exception as exc:
-        logger.warning(
-            "ATS resume generation failed (attempt %s/%s) for career_input=%s: %s",
-            self.request.retries + 1,
-            self.max_retries + 1,
-            career_input_id,
-            exc,
-        )
-        raise self.retry(exc=exc)
+        handle_celery_task_exception(self, exc)
 
     logger.info(
         "ATS resume generation completed for career_input=%s (%d chars)",

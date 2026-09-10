@@ -1,14 +1,3 @@
-"""
-Reusable FastAPI dependency for authentication.
-
-Usage:
-    from auth.auth_dependency import get_authenticated_user
-
-    @router.get("/protected")
-    def protected_route(current_user: User = Depends(get_authenticated_user)):
-        ...
-"""
-
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session

@@ -26,7 +26,8 @@ function LoginForm() {
       const token = res.data.access_token;
 
       localStorage.setItem("token", token);
-      document.cookie = `token=${token}; path=/; max-age=${60 * 60 * 24}; SameSite=Lax`;
+      // max-age must match ACCESS_TOKEN_EXPIRE_MINUTES (30 min = 1800 s)
+      document.cookie = `token=${token}; path=/; max-age=1800; SameSite=Lax`;
 
       const next = searchParams.get("next") || "/job-input";
       router.push(next);

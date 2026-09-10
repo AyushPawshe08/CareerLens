@@ -2,6 +2,13 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 
+class ResumeSuggestion(BaseModel):
+    """A single structured resume improvement suggestion from the LLM."""
+    action: str       # verb: Add | Quantify | Remove | Reframe | Highlight | Move
+    text: str         # the concrete suggestion text
+    impact: str       # "high" | "medium" | "low"
+
+
 class AnalysisResponse(BaseModel):
     """Full analysis result — returned when status == 'completed'."""
     id: str
@@ -11,7 +18,7 @@ class AnalysisResponse(BaseModel):
     missing_skills: List[str]
     matched_skills: List[str]
     perfect_job_roles: List[str]
-    resume_suggestions: List[str]
+    resume_suggestions: List[ResumeSuggestion]
     resume_score: Optional[int] = None
 
     class Config:

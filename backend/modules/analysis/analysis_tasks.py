@@ -12,11 +12,13 @@ Import path expected by Celery autodiscover: modules.analysis.analysis_tasks
 import logging
 
 from utils.celery_worker import celery
+from utils.callLLM import handle_celery_task_exception
 
 from services.analysis.summaryAndImprovements import get_summary_and_suggestions
 from services.analysis.skillService import get_missing_and_matched_skills
 from services.analysis.role_service import get_perfect_job_roles
 from services.analysis.scoring_service import get_resume_score
+
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +40,7 @@ def task_get_summary_and_suggestions(self, job_description: str, resume_text: st
         logger.info("Summary task completed successfully")
         return result
     except Exception as exc:
-        logger.warning("Summary task failed (attempt %s/%s): %s", self.request.retries + 1, self.max_retries + 1, exc)
-        raise self.retry(exc=exc)
+        handle_celery_task_exception(self, exc)
 
 
 @celery.task(
@@ -55,8 +56,7 @@ def task_get_missing_and_matched_skills(self, job_description: str, resume_text:
         logger.info("Skills task completed successfully")
         return result
     except Exception as exc:
-        logger.warning("Skills task failed (attempt %s/%s): %s", self.request.retries + 1, self.max_retries + 1, exc)
-        raise self.retry(exc=exc)
+        handle_celery_task_exception(self, exc)
 
 
 @celery.task(
@@ -72,8 +72,7 @@ def task_get_perfect_job_roles(self, resume_text: str) -> list:
         logger.info("Roles task completed successfully")
         return result
     except Exception as exc:
-        logger.warning("Roles task failed (attempt %s/%s): %s", self.request.retries + 1, self.max_retries + 1, exc)
-        raise self.retry(exc=exc)
+        handle_celery_task_exception(self, exc)
 
 
 @celery.task(
@@ -89,8 +88,7 @@ def task_get_resume_score(self, job_description: str, resume_text: str) -> int:
         logger.info("Score task completed successfully")
         return result
     except Exception as exc:
-        logger.warning("Score task failed (attempt %s/%s): %s", self.request.retries + 1, self.max_retries + 1, exc)
-        raise self.retry(exc=exc)
+        handle_celery_task_exception(self, exc)
 
 
 # ---------------------------------------------------------------------------
@@ -142,8 +140,7 @@ def task_run_full_analysis(self, career_input_id: str, job_description: str, res
     try:
         results = group_result.get(timeout=120, disable_sync_subtasks=False)
     except Exception as exc:
-        logger.error("Group subtasks failed for career_input=%s: %s", career_input_id, exc)
-        raise self.retry(exc=exc)
+        handle_celery_task_exception(self, exc)
 
     summary_data, skills_data, roles, score = results
 

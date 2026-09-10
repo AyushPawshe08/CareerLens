@@ -1,103 +1,65 @@
 /**
- * ResumeActions.jsx
+ * ResumeActions.jsx  (v2)
  *
- * Action button bar for the ATS Resume Generator page.
- *
- * Buttons:
- *   1. Download PDF  — uses html2pdf.js (already installed) to capture
- *                      the #resume-viewer-content element and export as PDF.
- *                      Falls back to plain-text .txt if html2pdf fails.
- *   2. Download .txt — lightweight plain-text download (always works).
- *   3. Regenerate    — calls parent handler to re-trigger generation.
+ * Action bar for the /resume page builder.
+ * - Download PDF: uses html2pdf.js targeting the #resume-preview div
+ * - Reset: clears all state (lifted up via onReset)
  *
  * Props:
- *   resumeText     {string}
- *   filename       {string}
- *   onRegenerate   {() => Promise<void>}
- *   regenerating   {boolean}
+ *   previewRef    {React.RefObject} — ref pointing to the A4 preview div
+ *   personalInfo  {object}          — used to derive filename
+ *   onReset       {() => void}
  */
-
 "use client";
 
 import { useState } from "react";
-import { Download, RotateCcw, FileText } from "lucide-react";
+import { Download, RotateCcw } from "lucide-react";
 
-export default function ResumeActions({
-  resumeText,
-  filename = "ATS_Resume",
-  onRegenerate,
-  regenerating = false,
-}) {
+export default function ResumeActions({ previewRef, personalInfo, onReset }) {
   const [downloadingPdf, setDownloadingPdf] = useState(false);
-  const [downloadingTxt, setDownloadingTxt] = useState(false);
+  const [confirmReset,   setConfirmReset]   = useState(false);
 
-  /* ── PDF download via html2pdf.js ── */
   const handleDownloadPdf = async () => {
-    if (!resumeText || downloadingPdf) return;
+    const el = previewRef?.current;
+    if (!el || downloadingPdf) return;
     setDownloadingPdf(true);
 
     try {
       const html2pdf = (await import("html2pdf.js")).default;
 
-      // Build a clean, self-contained HTML string for html2pdf to render.
-      // We replicate the monospace / pre-wrap style inline so the PDF
-      // matches the on-screen preview exactly.
-      const htmlContent = `
-        <div style="
-          font-family: 'Courier New', Consolas, monospace;
-          font-size: 11pt;
-          line-height: 1.8;
-          color: #1a1f36;
-          white-space: pre-wrap;
-          word-break: break-word;
-          padding: 0;
-          margin: 0;
-        ">${escapeHtml(resumeText)}</div>
-      `;
-
-      const element = document.createElement("div");
-      element.innerHTML = htmlContent;
-      document.body.appendChild(element);
+      const name     = personalInfo?.name?.trim();
+      const filename = name
+        ? `${name.replace(/\s+/g, "_")}_Resume.pdf`
+        : "Resume.pdf";
 
       await html2pdf()
         .set({
-          margin:      [12, 14, 12, 14],          // top, right, bottom, left (mm)
-          filename:    `${filename}.pdf`,
+          margin:      [10, 10, 10, 10],
+          filename,
           image:       { type: "jpeg", quality: 0.98 },
           html2canvas: { scale: 2, useCORS: true, logging: false },
           jsPDF:       { unit: "mm", format: "a4", orientation: "portrait" },
           pagebreak:   { mode: ["avoid-all", "css", "legacy"] },
         })
-        .from(element)
+        .from(el)
         .save();
-
-      document.body.removeChild(element);
     } catch (err) {
-      console.error("PDF generation failed — falling back to .txt:", err);
-      handleDownloadTxt();
+      console.error("PDF generation failed:", err);
+      alert("PDF generation failed. Please try again.");
     } finally {
       setDownloadingPdf(false);
     }
   };
 
-  /* ── Plain-text download ── */
-  const handleDownloadTxt = () => {
-    if (!resumeText || downloadingTxt) return;
-    setDownloadingTxt(true);
-    try {
-      const blob = new Blob([resumeText], { type: "text/plain;charset=utf-8" });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      a.href     = url;
-      a.download = `${filename}.txt`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } finally {
-      setDownloadingTxt(false);
+  const handleReset = () => {
+    if (!confirmReset) {
+      setConfirmReset(true);
+      setTimeout(() => setConfirmReset(false), 3000);
+      return;
     }
+    setConfirmReset(false);
+    onReset();
   };
-
-  const disabled = !resumeText;
 
   return (
     <div style={{
@@ -105,19 +67,26 @@ export default function ResumeActions({
       gap: "10px",
       flexWrap: "wrap",
       alignItems: "center",
-      marginTop: "20px",
+      padding: "14px 0 0",
+      borderTop: "1px solid #e5e7eb",
+      marginTop: "8px",
     }}>
 
       {/* Download PDF */}
       <button
-        id="ats-download-pdf-btn"
+        id="download-pdf-btn"
+        type="button"
         onClick={handleDownloadPdf}
-        disabled={disabled || downloadingPdf || regenerating}
-        className="btn btn-primary"
+        disabled={downloadingPdf}
+        style={{
+          ...BTN_PRIMARY,
+          opacity: downloadingPdf ? 0.7 : 1,
+          cursor: downloadingPdf ? "not-allowed" : "pointer",
+        }}
       >
         {downloadingPdf ? (
           <>
-            <span className="spinner" style={{ width: "14px", height: "14px", borderWidth: "2px" }} />
+            <span style={SPINNER} />
             Generating PDF…
           </>
         ) : (
@@ -128,55 +97,65 @@ export default function ResumeActions({
         )}
       </button>
 
-      {/* Download .txt */}
+      {/* Reset */}
       <button
-        id="ats-download-txt-btn"
-        onClick={handleDownloadTxt}
-        disabled={disabled || downloadingTxt || regenerating}
-        className="btn btn-secondary"
+        id="reset-resume-btn"
+        type="button"
+        onClick={handleReset}
+        style={{
+          ...BTN_GHOST,
+          color: confirmReset ? "#dc2626" : "#6b7280",
+          borderColor: confirmReset ? "#fca5a5" : "#d1d5db",
+          background: confirmReset ? "#fef2f2" : "transparent",
+        }}
       >
-        {downloadingTxt ? (
-          <>
-            <span className="spinner" style={{ width: "14px", height: "14px", borderWidth: "2px" }} />
-            Saving…
-          </>
-        ) : (
-          <>
-            <FileText size={15} />
-            Download .txt
-          </>
-        )}
+        <RotateCcw size={14} />
+        {confirmReset ? "Click again to confirm" : "Reset all"}
       </button>
 
-      {/* Regenerate */}
-      <button
-        id="ats-regenerate-btn"
-        onClick={onRegenerate}
-        disabled={regenerating || downloadingPdf}
-        className="btn btn-ghost"
-      >
-        {regenerating ? (
-          <>
-            <span className="spinner" style={{ width: "14px", height: "14px", borderWidth: "2px" }} />
-            Regenerating…
-          </>
-        ) : (
-          <>
-            <RotateCcw size={15} />
-            Regenerate Resume
-          </>
-        )}
-      </button>
-
+      {/* Autosave hint */}
+      <span style={{ marginLeft: "auto", fontSize: "11px", color: "#9ca3af" }}>
+        ✓ Auto-saved to browser
+      </span>
     </div>
   );
 }
 
-/** Escape HTML entities so the resume text renders as literal text in the PDF. */
-function escapeHtml(str) {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
+const BTN_PRIMARY = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "7px",
+  padding: "9px 18px",
+  background: "#4f6ef7",
+  color: "#fff",
+  border: "none",
+  borderRadius: "8px",
+  fontSize: "13.5px",
+  fontWeight: 600,
+  cursor: "pointer",
+  transition: "background 0.15s",
+};
+
+const BTN_GHOST = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "7px",
+  padding: "9px 16px",
+  background: "transparent",
+  border: "1px solid #d1d5db",
+  borderRadius: "8px",
+  fontSize: "13px",
+  fontWeight: 500,
+  cursor: "pointer",
+  transition: "all 0.15s",
+};
+
+const SPINNER = {
+  display: "inline-block",
+  width: "13px",
+  height: "13px",
+  border: "2px solid rgba(255,255,255,0.35)",
+  borderTopColor: "#fff",
+  borderRadius: "50%",
+  animation: "spin 0.7s linear infinite",
+};
